@@ -7,13 +7,14 @@ import { connect } from 'cloudflare:sockets';
 
 // How to generate your own UUID:
 // https://www.uuidgenerator.net/
-let userID = '1e6611ce-aec7-4a64-8699-d7d731659f05';
+let userID = 'd342d11e-d424-4583-b36e-524ab1f0afa4';
 
 // https://www.nslookup.io/domains/cdn.xn--b6gac.eu.org/dns-records/
 // https://www.nslookup.io/domains/cdn-all.xn--b6gac.eu.org/dns-records/
 const proxyIPs= 'tencent.rin-tohsakagangbang.filegear-sg.me';
 
-let proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
+// let proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
+let proxyIP = '15.235.167.49';
 
 let dohURL = 'https://cloudflare-dns.com/dns-query';
 
