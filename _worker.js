@@ -1,162 +1,210 @@
+// @ts-nocheck
 // <!--GAMFC-->version base on commit 43fad05dcdae3b723c53c226f8181fc5bd47223e, time is 2023-06-22 15:20:02 UTC<!--GAMFC-END-->.
 // @ts-ignore
+// https://github.com/bia-pain-bache/BPB-Worker-Panel
+
 import { connect } from 'cloudflare:sockets';
 
 // How to generate your own UUID:
-// [Windows] Press "Win + R", input cmd and run:  Powershell -NoExit -Command "[guid]::NewGuid()"
-let userID = 'd342d11e-d424-4583-b36e-524ab1f0afa4';
+// https://www.uuidgenerator.net/
+let userID = '1e6611ce-aec7-4a64-8699-d7d731659f05';
 
-const proxyIPs = ['cdn-all.xn--b6gac.eu.org', 'cdn.xn--b6gac.eu.org', 'cdn-b100.xn--b6gac.eu.org', 'edgetunnel.anycast.eu.org', 'cdn.anycast.eu.org'];
-//const proxyIPs = ['202.43.184.206', '103.157.117.8'];
-//let proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
-let proxyIP = "15.235.167.49";
+// https://www.nslookup.io/domains/cdn.xn--b6gac.eu.org/dns-records/
+// https://www.nslookup.io/domains/cdn-all.xn--b6gac.eu.org/dns-records/
+const proxyIPs= 'tencent.rin-tohsakagangbang.filegear-sg.me';
 
-let dohURL = 'https://sky.rethinkdns.com/1:-Pf_____9_8A_AMAIgE8kMABVDDmKOHTAKg='; // https://cloudflare-dns.com/dns-query or https://dns.google/dns-query
+let proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
 
-// v2board api environment variables (optional) deprecated, please use planetscale.com instead
+let dohURL = 'https://cloudflare-dns.com/dns-query';
+
+let panelVersion = '2.3.5';
 
 if (!isValidUUID(userID)) {
-	throw new Error('uuid is invalid');
+    throw new Error('uuid is not valid');
 }
 
 export default {
-	/**
-	 * @param {import("@cloudflare/workers-types").Request} request
-	 * @param {{UUID: string, PROXYIP: string, DNS_RESOLVER_URL: string, NODE_ID: int, API_HOST: string, API_TOKEN: string}} env
-	 * @param {import("@cloudflare/workers-types").ExecutionContext} ctx
-	 * @returns {Promise<Response>}
-	 */
-	async fetch(request, env, ctx) {
-		// uuid_validator(request);
-		try {
-			userID = env.UUID || userID;
-			proxyIP = env.PROXYIP || proxyIP;
-			dohURL = env.DNS_RESOLVER_URL || dohURL;
-			let userID_Path = userID;
-			if (userID.includes(',')) {
-				userID_Path = userID.split(',')[0];
-			}
-			const upgradeHeader = request.headers.get('Upgrade');
-			if (!upgradeHeader || upgradeHeader !== 'websocket') {
-				const url = new URL(request.url);
-				switch (url.pathname) {
-					case '/cf':
-						return new Response(JSON.stringify(request.cf, null, 4), {
-							status: 200,
-							headers: {
-								"Content-Type": "application/json;charset=utf-8",
-							},
-						});
-					case `/${userID_Path}`: {
-						const vlessConfig = getVLESSConfig(userID, request.headers.get('Host'));
-						return new Response(`${vlessConfig}`, {
-							status: 200,
-							headers: {
-								"Content-Type": "text/html; charset=utf-8",
-							}
-						});
-					}
-					case `/sub/${userID_Path}`: {
-						const url = new URL(request.url);
-						const searchParams = url.searchParams;
-						let vlessConfig = createVLESSSub(userID, request.headers.get('Host'));
-						// If 'format' query param equals to 'clash', convert config to base64
-						if (searchParams.get('format') === 'clash') {
-							vlessConfig = btoa(vlessConfig);
-						}
-						// Construct and return response object
-						return new Response(vlessConfig, {
-							status: 200,
-							headers: {
-								"Content-Type": "text/plain;charset=utf-8",
-							}
-						});
-					}
-					case `/bestip/${userID_Path}`: {
-						const bestiplink = `https://sub.xf.free.hr/auto?host=${request.headers.get('Host')}&uuid=${userID_Path}`
-						const reqHeaders = new Headers(request.headers);
-						const bestipresponse = await fetch(bestiplink, { redirect: 'manual', headers: reqHeaders, });
-						// Construct and return response object
-						return bestipresponse
-					}
-					default:
-						// return new Response('Not found', { status: 404 });
-						// For any other path, reverse proxy to 'www.fmprc.gov.cn' and return the original response, caching it in the process
-						const hostnames = ['www.fmprc.gov.cn', 'www.xuexi.cn', 'www.gov.cn', 'mail.gov.cn', 'www.mofcom.gov.cn', 'www.gfbzb.gov.cn', 'www.miit.gov.cn', 'www.12377.cn'];
-						url.hostname = hostnames[Math.floor(Math.random() * hostnames.length)];
-						url.protocol = 'https:';
+    /**
+     * @param {import("@cloudflare/workers-types").Request} request
+     * @param {{UUID: string, PROXYIP: string, DNS_RESOLVER_URL: string}} env
+     * @param {import("@cloudflare/workers-types").ExecutionContext} ctx
+     * @returns {Promise<Response>}
+     */
+    async fetch(request, env, ctx) {
+        try {
+            
+            userID = env.UUID || userID;
+            proxyIP = env.PROXYIP || proxyIP;
+            dohURL = env.DNS_RESOLVER_URL || dohURL;
+            const upgradeHeader = request.headers.get('Upgrade');
+            
+            if (!upgradeHeader || upgradeHeader !== 'websocket') {
+                
+                const url = new URL(request.url);
+                const searchParams = new URLSearchParams(url.search);
+                const host = request.headers.get('Host');
+                const client = searchParams.get('app');
 
-						const newHeaders = new Headers(request.headers);
-						newHeaders.set('cf-connecting-ip', newHeaders.get('x-forwarded-for') || newHeaders.get('cf-connecting-ip'));
-						newHeaders.set('x-forwarded-for', newHeaders.get('cf-connecting-ip'));
-						newHeaders.set('x-real-ip', newHeaders.get('cf-connecting-ip'));
-						newHeaders.set('referer', 'https://www.google.com/q=edtunnel');
+                switch (url.pathname) {
 
-						request = new Request(url, {
-							method: request.method,
-							headers: newHeaders,
-							body: request.body,
-							redirect: request.redirect,
-						});
+                    case '/cf':
+                        return new Response(JSON.stringify(request.cf, null, 4), {
+                            status: 200,
+                            headers: {
+                                'Content-Type': 'application/json;charset=utf-8',
+                            },
+                        });
+                        
+                    case `/sub/${userID}`:
 
-						const cache = caches.default;
-						let response = await cache.match(request);
+                        if (client === 'sfa') {
+                            const BestPingSFA = await getSingboxConfig(env, host);
+                            return new Response(`${JSON.stringify(BestPingSFA, null, 4)}`, { status: 200 });                            
+                        }
+                        const normalConfigs = await getNormalConfigs(env, host, client);
+                        return new Response(normalConfigs, { status: 200 });                        
 
-						if (!response) {
-							try {
-								response = await fetch(request, { redirect: 'manual' });
-							} catch (err) {
-								url.protocol = 'http:';
-								url.hostname = hostnames[Math.floor(Math.random() * hostnames.length)];
-								request = new Request(url, {
-									method: request.method,
-									headers: newHeaders,
-									body: request.body,
-									redirect: request.redirect,
-								});
-								response = await fetch(request, { redirect: 'manual' });
-							}
+                    case `/fragsub/${userID}`:
 
-							const cloneResponse = response.clone();
-							ctx.waitUntil(cache.put(request, cloneResponse));
-						}
-						return response;
-				}
-			} else {
-				return await vlessOverWSHandler(request);
-			}
-		} catch (err) {
-			/** @type {Error} */ let e = err;
-			return new Response(e.toString());
-		}
-	},
+                        let fragConfigs = await getFragmentConfigs(env, host, 'v2ray');
+                        fragConfigs = fragConfigs.map(config => config.config);
+
+                        return new Response(`${JSON.stringify(fragConfigs, null, 4)}`, { status: 200 });
+
+                    case '/panel':
+
+                        if (typeof env.bpb !== 'object') {
+                            const errorPage = renderErrorPage('KV Dataset is not properly set!', null, true);
+                            return new Response(errorPage, { status: 200, headers: {'Content-Type': 'text/html'}});
+                        }
+
+                        let isAuth = await Authenticate(request, env); 
+                        
+                        if (request.method === 'POST') {
+                            
+                            if (!isAuth) return new Response('Unauthorized', { status: 401 });             
+                            const formData = await request.formData();
+                            await updateDataset(env, formData);
+
+                            return new Response('Success', { status: 200 });
+                        }
+                        
+                        if (!isAuth) return Response.redirect(`${url.origin}/login`, 302);
+                        if (! await env.bpb.get('proxySettings')) await updateDataset(env);
+                        let fragConfs = await getFragmentConfigs(env, host, 'nekoray');
+                        let homePage = await renderHomePage(request, env, host, fragConfs);
+
+                        return new Response(homePage, {
+                            status: 200,
+                            headers: {
+                                'Content-Type': 'text/html',
+                                'Access-Control-Allow-Origin': url.origin,
+                                'Access-Control-Allow-Methods': 'GET, POST',
+                                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                                'X-Content-Type-Options': 'nosniff',
+                                'X-Frame-Options': 'DENY',
+                                'Referrer-Policy': 'strict-origin-when-cross-origin'
+                            }
+                        });
+                                                      
+                    case '/login':
+
+                        if (typeof env.bpb !== 'object') {
+                            const errorPage = renderErrorPage('KV Dataset is not properly set!', null, true);
+                            return new Response(errorPage, { status: 200, headers: {'Content-Type': 'text/html'}});
+                        }
+
+                        let loginAuth = await Authenticate(request, env);
+                        if (loginAuth) return Response.redirect(`${url.origin}/panel`, 302);
+
+                        let secretKey = await env.bpb.get('secretKey');
+                        const pwd = await env.bpb.get('pwd');
+                        if (!pwd) await env.bpb.put('pwd', 'admin');
+
+                        if (!secretKey) {
+                            secretKey = generateSecretKey();
+                            await env.bpb.put('secretKey', secretKey);
+                        }
+
+                        if (request.method === 'POST') {
+                            const password = await request.text();
+                            const savedPass = await env.bpb.get('pwd');
+
+                            if (password === savedPass) {
+                                const jwtToken = generateJWTToken(secretKey, password);
+                                const cookieHeader = `jwtToken=${jwtToken}; HttpOnly; Secure; Max-Age=${7 * 24 * 60 * 60}; Path=/; SameSite=Strict`;
+                                
+                                return new Response('Success', {
+                                    status: 200,
+                                    headers: {
+                                      'Set-Cookie': cookieHeader,
+                                      'Content-Type': 'text/plain',
+                                    }
+                                });        
+                            } else {
+                                return new Response('Method Not Allowed', { status: 405 });
+                            }
+                        }
+                        
+                        const loginPage = await renderLoginPage();
+
+                        return new Response(loginPage, {
+                            status: 200,
+                            headers: {
+                                'Content-Type': 'text/html',
+                                'Access-Control-Allow-Origin': url.origin,
+                                'Access-Control-Allow-Methods': 'GET, POST',
+                                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                                'X-Content-Type-Options': 'nosniff',
+                                'X-Frame-Options': 'DENY',
+                                'Referrer-Policy': 'strict-origin-when-cross-origin'
+                            }
+                        });
+                    
+                    case '/logout':
+                                    
+                        return new Response('Success', {
+                            status: 200,
+                            headers: {
+                                'Set-Cookie': 'jwtToken=; Secure; SameSite=None; Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+                                'Content-Type': 'text/plain'
+                            }
+                        });        
+
+                    case '/panel/password':
+
+                        let passAuth = await Authenticate(request, env);
+                        if (!passAuth) return new Response('Unauthorized!', { status: 401 });           
+                        const newPwd = await request.text();
+                        const oldPwd = await env.bpb.get('pwd');
+                        if (newPwd === oldPwd) return new Response('Please enter a new Password!', { status: 400 });
+                        await env.bpb.put('pwd', newPwd);
+
+                        return new Response('Success', {
+                            status: 200,
+                            headers: {
+                                'Set-Cookie': 'jwtToken=; Path=/; Secure; SameSite=None; Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+                                'Content-Type': 'text/plain',
+                            }
+                        });
+
+                    default:
+                        // return new Response('Not found', { status: 404 });
+                        url.hostname = 'www.speedtest.net';
+                        url.protocol = 'https:';
+                        request = new Request(url, request);
+                        return await fetch(request);
+                }
+            } else {
+                return await vlessOverWSHandler(request);
+            }
+        } catch (err) {
+            /** @type {Error} */ let e = err;
+            const errorPage = renderErrorPage('Something went wrong!', e.message.toString(), false);
+            return new Response(errorPage, { status: 200, headers: {'Content-Type': 'text/html'}});
+        }
+    },
 };
-
-export async function uuid_validator(request) {
-	const hostname = request.headers.get('Host');
-	const currentDate = new Date();
-
-	const subdomain = hostname.split('.')[0];
-	const year = currentDate.getFullYear();
-	const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-	const day = String(currentDate.getDate()).padStart(2, '0');
-
-	const formattedDate = `${year}-${month}-${day}`;
-
-	// const daliy_sub = formattedDate + subdomain
-	const hashHex = await hashHex_f(subdomain);
-	// subdomain string contains timestamps utc and uuid string TODO.
-	console.log(hashHex, subdomain, formattedDate);
-}
-
-export async function hashHex_f(string) {
-	const encoder = new TextEncoder();
-	const data = encoder.encode(string);
-	const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-	const hashArray = Array.from(new Uint8Array(hashBuffer));
-	const hashHex = hashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
-	return hashHex;
-}
 
 /**
  * Handles VLESS over WebSocket requests by creating a WebSocket pair, accepting the WebSocket connection, and processing the VLESS header.
@@ -237,7 +285,7 @@ async function vlessOverWSHandler(request) {
 				udpStreamWrite(rawClientData);
 				return;
 			}
-			handleTCPOutBound(remoteSocketWapper, addressRemote, portRemote, rawClientData, webSocket, vlessResponseHeader, log);
+			handleTCPOutBound(request, remoteSocketWapper, addressRemote, portRemote, rawClientData, webSocket, vlessResponseHeader, log);
 		},
 		close() {
 			log(`readableWebSocketStream is close`);
@@ -267,7 +315,7 @@ async function vlessOverWSHandler(request) {
  * @param {function} log The logging function.
  * @returns {Promise<void>} The remote socket.
  */
-async function handleTCPOutBound(remoteSocket, addressRemote, portRemote, rawClientData, webSocket, vlessResponseHeader, log,) {
+async function handleTCPOutBound(request, remoteSocket, addressRemote, portRemote, rawClientData, webSocket, vlessResponseHeader, log,) {
 
 	/**
 	 * Connects to a given address and port and writes data to the socket.
@@ -294,7 +342,10 @@ async function handleTCPOutBound(remoteSocket, addressRemote, portRemote, rawCli
 	 * @returns {Promise<void>} A Promise that resolves when the retry is complete.
 	 */
 	async function retry() {
-		const tcpSocket = await connectAndWrite(proxyIP || addressRemote, portRemote)
+        const { pathname } = new URL(request.url);
+        let panelProxyIP = pathname.split('/')[2];
+        panelProxyIP = panelProxyIP ? atob(panelProxyIP) : undefined;
+		const tcpSocket = await connectAndWrite(panelProxyIP || proxyIP || addressRemote, portRemote);
 		tcpSocket.closed.catch(error => {
 			console.log('retry tcpSocket closed error', error);
 		}).finally(() => {
@@ -711,163 +762,1963 @@ async function handleUDPOutBound(webSocket, vlessResponseHeader, log) {
 
 /**
  *
- * @param {string} userID - single or comma separated userIDs
+ * @param {string} userID
  * @param {string | null} hostName
  * @returns {string}
  */
-function getVLESSConfig(userIDs, hostName) {
-	const commonUrlPart = `:443?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D2048#${hostName}`;
-	const separator = "---------------------------------------------------------------";
-	const hashSeparator = "################################################################";
 
-	// Split the userIDs into an array
-	let userIDArray = userIDs.split(',');
+const getNormalConfigs = async (env, hostName, client) => {
+    let proxySettings = {};
+    let vlessWsTls = '';
 
-	// Prepare output array
-	let output = [];
-	let header = [];
-	const clash_link = `https://subconverter.do.xn--b6gac.eu.org/sub?target=clash&url=https://${hostName}/sub/${userIDArray[0]}?format=clash&insert=false&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
-	header.push(`\n<p align="center"><img src="https://cloudflare-ipfs.com/ipfs/bafybeigd6i5aavwpr6wvnwuyayklq3omonggta4x2q7kpmgafj357nkcky" alt="图片描述" style="margin-bottom: -50px;">`);
-	header.push(`\n<b style=" font-size: 15px;" >Welcome! This function generates configuration for VLESS protocol. If you found this useful, please check our GitHub project for more:</b>\n`);
-	header.push(`<b style=" font-size: 15px;" >欢迎！这是生成 VLESS 协议的配置。如果您发现这个项目很好用，请查看我们的 GitHub 项目给我一个star：</b>\n`);
-	header.push(`\n<a href="https://github.com/3Kmfi6HP/EDtunnel" target="_blank">EDtunnel - https://github.com/3Kmfi6HP/EDtunnel</a>\n`);
-	header.push(`\n<iframe src="https://ghbtns.com/github-btn.html?user=USERNAME&repo=REPOSITORY&type=star&count=true&size=large" frameborder="0" scrolling="0" width="170" height="30" title="GitHub"></iframe>\n\n`.replace(/USERNAME/g, "3Kmfi6HP").replace(/REPOSITORY/g, "EDtunnel"));
-	header.push(`<a href="//${hostName}/sub/${userIDArray[0]}" target="_blank">VLESS 节点订阅连接</a>\n<a href="clash://install-config?url=${encodeURIComponent(clash_link)}" target="_blank">Clash 节点订阅连接</a>\n<a href="${clash_link}" target="_blank">Clash 节点订阅连接2</a></p>\n`);
-	header.push(``);
+    try {
+        proxySettings = await env.bpb.get("proxySettings", {type: 'json'});
+    } catch (error) {
+        console.log(error);
+        throw new Error(`An error occurred while getting normal configs - ${error}`);
+    }
 
-	// Generate output string for each userID
-	userIDArray.forEach((userID) => {
-		const vlessMain = `vless://${userID}@${hostName}${commonUrlPart}`;
-		const vlessSec = `vless://${userID}@${proxyIP}${commonUrlPart}`;
-		output.push(`UUID: ${userID}`);
-		output.push(`${hashSeparator}\nv2ray default ip\n${separator}\n${vlessMain}\n${separator}`);
-		output.push(`${hashSeparator}\nv2ray with best ip\n${separator}\n${vlessSec}\n${separator}`);
-	});
-	output.push(`${hashSeparator}\n# Clash Proxy Provider 配置格式(configuration format)\nproxy-groups:\n  - name: UseProvider\n	type: select\n	use:\n	  - provider1\n	proxies:\n	  - Proxy\n	  - DIRECT\nproxy-providers:\n  provider1:\n	type: http\n	url: https://${hostName}/sub/${userIDArray[0]}?format=clash\n	interval: 3600\n	path: ./provider1.yaml\n	health-check:\n	  enable: true\n	  interval: 600\n	  # lazy: true\n	  url: http://www.gstatic.com/generate_204\n\n${hashSeparator}`);
+    const { cleanIPs, proxyIP } = proxySettings;
+    const resolved = await resolveDNS(hostName);
+    const Addresses = [
+        hostName,
+        'www.speedtest.net',
+        ...(cleanIPs ? cleanIPs.split(',') : []),
+        ...resolved.ipv4,
+        ...resolved.ipv6.map((ip) => `[${ip}]`),
+    ];
 
-	// HTML Head with CSS
-	const htmlHead = `
-    <head>
-        <title>EDtunnel: VLESS configuration</title>
-        <meta name="description" content="This is a tool for generating VLESS protocol configurations. Give us a star on GitHub https://github.com/3Kmfi6HP/EDtunnel if you found it useful!">
-		<meta name="keywords" content="EDtunnel, cloudflare pages, cloudflare worker, severless">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-		<meta property="og:site_name" content="EDtunnel: VLESS configuration" />
-        <meta property="og:type" content="website" />
-        <meta property="og:title" content="EDtunnel - VLESS configuration and subscribe output" />
-        <meta property="og:description" content="Use cloudflare pages and worker severless to implement vless protocol" />
-        <meta property="og:url" content="https://${hostName}/" />
-        <meta property="og:image" content="https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(`vless://${userIDs.split(',')[0]}@${hostName}${commonUrlPart}`)}" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="EDtunnel - VLESS configuration and subscribe output" />
-        <meta name="twitter:description" content="Use cloudflare pages and worker severless to implement vless protocol" />
-        <meta name="twitter:url" content="https://${hostName}/" />
-        <meta name="twitter:image" content="https://cloudflare-ipfs.com/ipfs/bafybeigd6i5aavwpr6wvnwuyayklq3omonggta4x2q7kpmgafj357nkcky" />
-        <meta property="og:image:width" content="1500" />
-        <meta property="og:image:height" content="1500" />
+    Addresses.forEach((addr) => {
+        let remark = `WORLWARDS🔥 - ${addr}`;
+        remark = remark.length <= 30 ? remark : `${remark.slice(0,29)}...`;
 
-        <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
-            color: #333;
-            padding: 10px;
+        vlessWsTls += 'vless' + `://${userID}@${addr}:443?encryption=none&security=tls&type=ws&host=${
+            randomUpperCase(hostName)
+        }&sni=${
+            randomUpperCase(hostName)
+        }&fp=randomized&alpn=http/1.1&path=${
+            encodeURIComponent(`/${getRandomPath(16)}${proxyIP ? `/${btoa(proxyIP)}` : ''}?ed=2560`)
+        }#${encodeURIComponent(remark)}\n`;
+    });
+
+    const subscription = client === 'singbox' ? btoa(vlessWsTls) : btoa(vlessWsTls.replaceAll('http/1.1', 'h2,http/1.1'));
+    return subscription;
+}
+
+const extractVlessParams = async (vlessConfig) => {
+    const url = new URL(vlessConfig.replace('vless', 'http'));
+    const params = new URLSearchParams(url.search);
+    let configParams = {
+        uuid : url.username,
+        hostName : url.hostname,
+        port : url.port
+    };
+
+    params.forEach( (value, key) => {
+        configParams[key] = value;
+    })
+
+    return JSON.stringify(configParams);
+}
+
+const buildProxyOutbound = async (proxyParams) => {
+    const { hostName, port, uuid, flow, security, type, sni, fp, alpn, pbk, sid, spx, headerType, host, path, authority, serviceName, mode } = proxyParams;
+    let proxyOutbound = structuredClone(xrayOutboundTemp);   
+    proxyOutbound.settings.vnext[0].address = hostName;
+    proxyOutbound.settings.vnext[0].port = +port;
+    proxyOutbound.settings.vnext[0].users[0].id = uuid;
+    proxyOutbound.settings.vnext[0].users[0].flow = flow;
+    proxyOutbound.streamSettings.security = security;
+    proxyOutbound.streamSettings.network = type;
+    proxyOutbound.tag = "out";
+    proxyOutbound.streamSettings.sockopt.dialerProxy = "proxy";
+
+    switch (security) {
+
+        case 'tls':
+            proxyOutbound.streamSettings.tlsSettings.serverName = sni;
+            proxyOutbound.streamSettings.tlsSettings.fingerprint = fp;
+            proxyOutbound.streamSettings.tlsSettings.alpn = alpn ? alpn?.split(',') : [];
+            delete proxyOutbound.streamSettings.realitySettings;         
+            break;
+
+        case 'reality':
+            proxyOutbound.streamSettings.realitySettings.publicKey = pbk;
+            proxyOutbound.streamSettings.realitySettings.shortId = sid;
+            proxyOutbound.streamSettings.realitySettings.serverName = sni;
+            proxyOutbound.streamSettings.realitySettings.fingerprint = fp;
+            proxyOutbound.streamSettings.realitySettings.spiderX = spx;
+            delete proxyOutbound.mux;
+            delete proxyOutbound.streamSettings.tlsSettings;
+            break;
+
+        default:
+            delete proxyOutbound.streamSettings.tlsSettings;
+            delete proxyOutbound.streamSettings.realitySettings;         
+            break;
+    }
+ 
+    switch (type) {
+
+        case 'tcp':
+            delete proxyOutbound.streamSettings.grpcSettings;
+            delete proxyOutbound.streamSettings.wsSettings;
+            
+            if (security === 'reality' && (!headerType || headerType === 'none')) {
+                delete proxyOutbound.streamSettings.tcpSettings;
+                break;
+            }
+
+            if (headerType === 'http') {
+                proxyOutbound.streamSettings.tcpSettings.header.request.headers.Host = host?.split(',');
+                proxyOutbound.streamSettings.tcpSettings.header.request.path = path?.split(',');
+            } 
+            
+            if (!headerType) {
+                proxyOutbound.streamSettings.tcpSettings.header.type = 'none';
+                delete proxyOutbound.streamSettings.tcpSettings.header.request;
+                delete proxyOutbound.streamSettings.tcpSettings.header.response;
+            }
+            
+            break;
+
+        case 'ws':
+            proxyOutbound.streamSettings.wsSettings.headers.Host = host;
+            proxyOutbound.streamSettings.wsSettings.path = path;
+            delete proxyOutbound.streamSettings.grpcSettings;
+            delete proxyOutbound.streamSettings.tcpSettings;
+            break;
+
+        case 'grpc':  
+            proxyOutbound.streamSettings.grpcSettings.authority = authority;
+            proxyOutbound.streamSettings.grpcSettings.serviceName = serviceName;
+            proxyOutbound.streamSettings.grpcSettings.multiMode = mode === 'multi';
+            delete proxyOutbound.mux;
+            delete proxyOutbound.streamSettings.tcpSettings;
+            delete proxyOutbound.streamSettings.wsSettings;
+            break;
+
+        default:
+            break;
+    }
+    
+    return proxyOutbound;
+}
+
+const buildWorkerLessConfig = async (env, client) => {
+    let proxySettings = {};
+
+    try {
+        proxySettings = await env.bpb.get("proxySettings", {type: 'json'});
+    } catch (error) {
+        console.log(error);
+        throw new Error(`An error occurred while generating WorkerLess config - ${error}`);
+    }
+
+    const { remoteDNS, localDNS, lengthMin,  lengthMax,  intervalMin,  intervalMax, blockAds, bypassIran, blockPorn, bypassLAN } = proxySettings;  
+    let fakeOutbound = structuredClone(xrayOutboundTemp);
+    delete fakeOutbound.mux;
+    fakeOutbound.settings.vnext[0].address = 'google.com';
+    fakeOutbound.settings.vnext[0].users[0].id = userID;
+    delete fakeOutbound.streamSettings.sockopt;
+    fakeOutbound.streamSettings.tlsSettings.serverName = 'google.com';
+    fakeOutbound.streamSettings.wsSettings.headers.Host = 'google.com';
+    fakeOutbound.streamSettings.wsSettings.path = '/';
+    delete fakeOutbound.streamSettings.grpcSettings;
+    delete fakeOutbound.streamSettings.tcpSettings;
+    delete fakeOutbound.streamSettings.realitySettings;
+    fakeOutbound.tag = 'fake-outbound';
+
+    let fragConfig = structuredClone(xrayConfigTemp);
+    fragConfig.remarks  = '🔥WORLDWARS Frag - WorkerLess 🔥'
+    fragConfig.dns = await buildDNSObject(remoteDNS, localDNS, blockAds, bypassIran, blockPorn, true);
+    fragConfig.outbounds[0].settings.domainStrategy = 'UseIP';
+    fragConfig.outbounds[0].settings.fragment.length = `${lengthMin}-${lengthMax}`;
+    fragConfig.outbounds[0].settings.fragment.interval = `${intervalMin}-${intervalMax}`;
+    fragConfig.outbounds = [
+        {...fragConfig.outbounds[0]}, 
+        {...fragConfig.outbounds[1]}, 
+        {...fakeOutbound}, 
+        {...fragConfig.outbounds[2]}, 
+        {...fragConfig.outbounds[3]}
+    ];
+    fragConfig.routing.rules = buildRoutingRules(localDNS, blockAds, bypassIran, blockPorn, bypassLAN, false, false, true);
+    delete fragConfig.routing.balancers;
+    delete fragConfig.observatory;
+
+    if (client === 'nekoray') {
+        fragConfig.inbounds[0].port = 2080;
+        fragConfig.inbounds[1].port = 2081;
+    }
+
+    return fragConfig;
+}
+
+const getFragmentConfigs = async (env, hostName, client) => {
+    let Configs = [];
+    let outbounds = [];
+    let proxySettings = {};
+    let proxyOutbound;
+
+    try {
+        proxySettings = await env.bpb.get("proxySettings", {type: 'json'});
+    } catch (error) {
+        console.log(error);
+        throw new Error(`An error occurred while getting fragment configs - ${error}`);
+    }
+
+    const {
+        remoteDNS, 
+        localDNS, 
+        lengthMin, 
+        lengthMax, 
+        intervalMin, 
+        intervalMax,
+        blockAds,
+        bypassIran,
+        blockPorn,
+        bypassLAN, 
+        cleanIPs,
+        proxyIP,
+        outProxy,
+        outProxyParams
+    } = proxySettings;
+
+    const resolved = await resolveDNS(hostName);
+    const Addresses = [
+        hostName,
+        "www.speedtest.net",
+        ...(cleanIPs ? cleanIPs.split(",") : []),
+        ...resolved.ipv4,
+        ...resolved.ipv6.map((ip) => `[${ip}]`)
+    ];
+
+    if (outProxy) {
+        const proxyParams = JSON.parse(outProxyParams);
+        try {
+            proxyOutbound = await buildProxyOutbound(proxyParams);
+        } catch (error) {
+            console.log('An error occured while parsing chain proxy: ', error);
+            proxyOutbound = undefined;
+            await env.bpb.put("proxySettings", JSON.stringify({
+                ...proxySettings, 
+                outProxy: '',
+                outProxyParams: ''}));
+        }
+    }
+
+    for (let index in Addresses) {
+
+        let addr = Addresses[index];
+        let fragConfig = structuredClone(xrayConfigTemp);
+        let outbound = structuredClone(xrayOutboundTemp);
+        let remark = `🔥WORLDWARS - ${addr}`;
+        delete outbound.mux;
+        delete outbound.streamSettings.grpcSettings;
+        delete outbound.streamSettings.realitySettings;
+        delete outbound.streamSettings.tcpSettings;
+        outbound.settings.vnext[0].address = addr;
+        outbound.settings.vnext[0].port = 443;
+        outbound.settings.vnext[0].users[0].id = userID;
+        outbound.streamSettings.tlsSettings.serverName = randomUpperCase(hostName);
+        outbound.streamSettings.wsSettings.headers.Host = randomUpperCase(hostName);
+        outbound.streamSettings.wsSettings.path = `/${getRandomPath(16)}${proxyIP ? `/${btoa(proxyIP)}` : ''}?ed=2560`;
+        
+        fragConfig.remarks = remark.length <= 30 ? remark : `${remark.slice(0,29)}...`;;
+        fragConfig.dns = await buildDNSObject(remoteDNS, localDNS, blockAds, bypassIran, blockPorn);
+        fragConfig.outbounds[0].settings.fragment.length = `${lengthMin}-${lengthMax}`;
+        fragConfig.outbounds[0].settings.fragment.interval = `${intervalMin}-${intervalMax}`;
+        
+        if (proxyOutbound) {
+            fragConfig.outbounds = [{...proxyOutbound}, { ...outbound}, ...fragConfig.outbounds];
+            fragConfig.routing.rules = buildRoutingRules(localDNS, blockAds, bypassIran, blockPorn, bypassLAN, true, false);
+        } else {
+            fragConfig.outbounds = [{ ...outbound}, ...fragConfig.outbounds];
+            fragConfig.routing.rules = buildRoutingRules(localDNS, blockAds, bypassIran, blockPorn, bypassLAN, false, false);
+        }
+        
+        delete fragConfig.observatory;
+        delete fragConfig.routing.balancers;
+
+        if (client === 'nekoray') {
+            fragConfig.inbounds[0].port = 2080;
+            fragConfig.inbounds[1].port = 2081;
+        }
+                    
+        Configs.push({
+            address: addr,
+            config: fragConfig
+        }); 
+
+        outbound.tag = `prox_${+index + 1}`;
+    
+        if (proxyOutbound) {
+            let proxyOut = structuredClone(proxyOutbound);
+            proxyOut.tag = `out_${+index + 1}`;
+            proxyOut.streamSettings.sockopt.dialerProxy = `prox_${+index + 1}`;
+            outbounds.push({...proxyOut}, {...outbound});
+        } else {
+            outbounds.push({...outbound});
+        }
+    };
+
+
+    let bestPing = structuredClone(xrayConfigTemp);
+    bestPing.remarks = '🔥WORLDWARS - Best Ping 💥';
+    bestPing.dns = await buildDNSObject(remoteDNS, localDNS, blockAds, bypassIran, blockPorn);
+    bestPing.outbounds[0].settings.fragment.length = `${lengthMin}-${lengthMax}`;
+    bestPing.outbounds[0].settings.fragment.interval = `${intervalMin}-${intervalMax}`;
+    bestPing.outbounds = [...outbounds, ...bestPing.outbounds];
+    
+    if (proxyOutbound) {
+        bestPing.observatory.subjectSelector = ["out"];
+        bestPing.routing.balancers[0].selector = ["out"];
+        bestPing.routing.rules = buildRoutingRules(localDNS, blockAds, bypassIran, blockPorn, bypassLAN, true, true);
+    } else {
+        bestPing.routing.rules = buildRoutingRules(localDNS, blockAds, bypassIran, blockPorn, bypassLAN, false, true);
+    }
+
+    if (client === 'nekoray') {
+        bestPing.inbounds[0].port = 2080;
+        bestPing.inbounds[1].port = 2081;
+    }
+
+    const workerLessConfig = await buildWorkerLessConfig(env, client);
+
+
+    
+    Configs.push(
+        { address: 'Best-Ping', config: bestPing}, 
+        { address: 'WorkerLess', config: workerLessConfig}
+    );
+
+    return Configs;
+}
+
+const getSingboxConfig = async (env, hostName) => {
+    let proxySettings = {};
+    
+    try {
+        proxySettings = await env.bpb.get("proxySettings", {type: 'json'});
+    } catch (error) {
+        console.log(error);
+        throw new Error(`An error occurred while getting sing-box configs - ${error}`);
+    }
+
+    const { remoteDNS,  localDNS, cleanIPs, proxyIP } = proxySettings
+    let config = structuredClone(singboxConfigTemp);
+    config.dns.servers[0].address = remoteDNS;
+    config.dns.servers[1].address = localDNS;
+
+    const resolved = await resolveDNS(hostName);
+    const Addresses = [
+        hostName,
+        "www.speedtest.net",
+        ...(cleanIPs ? cleanIPs.split(",") : []),
+        ...resolved.ipv4,
+        ...resolved.ipv6.map((ip) => `[${ip}]`),
+    ];
+
+    Addresses.forEach(addr => {
+        let outbound = structuredClone(singboxOutboundTemp);
+        outbound.server = addr;
+        outbound.tag = addr;
+        outbound.uuid = userID;
+        outbound.tls.server_name = randomUpperCase(hostName);
+        outbound.transport.headers.Host = randomUpperCase(hostName);
+        outbound.transport.path = `/${getRandomPath(16)}${proxyIP ? `/${btoa(proxyIP)}` : ''}?ed=2560`;
+        config.outbounds.push(outbound);
+        config.outbounds[0].outbounds.push(addr);
+        config.outbounds[1].outbounds.push(addr);
+    });
+
+    return config;
+}
+
+const updateDataset = async (env, Settings) => {
+
+    const vlessConfig = Settings?.get('outProxy');
+    const proxySettings = {
+        remoteDNS: Settings?.get('remoteDNS') || 'https://94.140.14.14/dns-query',
+        localDNS: Settings?.get('localDNS') || '8.8.8.8',
+        lengthMin: Settings?.get('fragmentLengthMin') || '100',
+        lengthMax: Settings?.get('fragmentLengthMax') || '200',
+        intervalMin: Settings?.get('fragmentIntervalMin') || '5',
+        intervalMax: Settings?.get('fragmentIntervalMax') || '10',
+        blockAds: Settings?.get('block-ads') || false,
+        bypassIran: Settings?.get('bypass-iran') || false,
+        blockPorn: Settings?.get('block-porn') || false,
+        bypassLAN: Settings?.get('bypass-lan') || false,
+        cleanIPs: Settings?.get('cleanIPs')?.replaceAll(' ', '') || '',
+        proxyIP: Settings?.get('proxyIP') || '',
+        outProxy: vlessConfig || '',
+        outProxyParams: vlessConfig ? await extractVlessParams(vlessConfig) : ''
+    };
+
+    try {    
+        await env.bpb.put("proxySettings", JSON.stringify(proxySettings));          
+    } catch (error) {
+        console.log(error);
+        throw new Error(`An error occurred while updating KV - ${error}`);
+    }
+}
+
+const randomUpperCase = (str) => {
+    let result = '';
+    for (let i = 0; i < str.length; i++) {
+        result += Math.random() < 0.5 ? str[i].toUpperCase() : str[i];
+    }
+    return result;
+}
+
+const getRandomPath = (length) => {
+    let result = '';
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const charactersLength = characters.length;
+    for (let i = 0; i < length; i++) {
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+}
+
+const resolveDNS = async (domain) => {
+    const dohURLv4 = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=A`;
+    const dohURLv6 = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=AAAA`;
+
+    try {
+        const [ipv4Response, ipv6Response] = await Promise.all([
+            fetch(dohURLv4, { headers: { accept: 'application/dns-json' } }),
+            fetch(dohURLv6, { headers: { accept: 'application/dns-json' } }),
+        ]);
+
+        const ipv4Addresses = await ipv4Response.json();
+        const ipv6Addresses = await ipv6Response.json();
+
+        const ipv4 = ipv4Addresses.Answer
+            ? ipv4Addresses.Answer.map((record) => record.data)
+            : [];
+        const ipv6 = ipv6Addresses.Answer
+            ? ipv6Addresses.Answer.map((record) => record.data)
+            : [];
+
+        return { ipv4, ipv6 };
+    } catch (error) {
+        console.error('Error resolving DNS:', error);
+        throw new Error(`An error occurred while resolving DNS - ${error}`);
+    }
+}
+
+const generateJWTToken = (password, secretKey) => {
+    const header = {
+        alg: 'HS256',
+        typ: 'JWT'
+    };
+
+    const payload = {
+        exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60),
+        data: { password }
+    };
+    const encodedHeader = btoa(JSON.stringify(header));
+    const encodedPayload = btoa(JSON.stringify(payload));
+    const signature = btoa(crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${encodedHeader}.${encodedPayload}.${secretKey}`)));
+
+    return `Bearer ${encodedHeader}.${encodedPayload}.${signature}`;
+}
+
+const generateSecretKey = () => {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+  
+const Authenticate = async (request, env) => {
+    
+    try {
+        const secretKey = await env.bpb.get('secretKey');
+        const cookie = request.headers.get('Cookie');
+        const cookieMatch = cookie ? cookie.match(/(^|;\s*)jwtToken=([^;]*)/) : null;
+        const token = cookieMatch ? cookieMatch.pop() : null;
+
+        if (!token) {
+            console.log('token');
+            return false;
         }
 
-        a {
-            color: #1a0dab;
-            text-decoration: none;
+        const tokenWithoutBearer = token.startsWith('Bearer ') ? token.slice(7) : token;
+        const [encodedHeader, encodedPayload, signature] = tokenWithoutBearer.split('.');
+        const payload = JSON.parse(atob(encodedPayload));
+
+        const expectedSignature = btoa(crypto.subtle.digest(
+            'SHA-256',
+            new TextEncoder().encode(`${encodedHeader}.${encodedPayload}.${secretKey}`)
+        ));
+
+        if (signature !== expectedSignature) return false;
+
+        const now = Math.floor(Date.now() / 1000);
+        if (payload.exp < now) return false;
+
+        return true;
+    } catch (error) {
+        console.log(error);
+        throw new Error(`An error occurred while authentication - ${error}`);
+    }
+}
+
+const renderHomePage = async (request, env, hostName, fragConfigs) => {
+    let proxySettings = {};
+    
+    try {
+        proxySettings = await env.bpb.get("proxySettings", {type: 'json'});
+    } catch (error) {
+        console.log(error);
+        throw new Error(`An error occurred while rendering home page - ${error}`);
+    }
+
+    const {
+        remoteDNS = '', 
+        localDNS = '', 
+        lengthMin = '', 
+        lengthMax = '', 
+        intervalMin = '', 
+        intervalMax = '', 
+        blockAds = false, 
+        bypassIran = false,
+        blockPorn = false,
+        bypassLAN = false,
+        cleanIPs = '', 
+        proxyIP = '', 
+        outProxy = ''
+    } = proxySettings;
+
+    let regionNames = new Intl.DisplayNames(['en'], {type: 'region'});
+
+    const genCustomConfRow = async (configs) => {
+        let tableBlock = "";
+        configs.forEach(config => {
+            tableBlock += `
+            <tr>
+                <td>
+                    ${config.address === 'Best-Ping' 
+                        ? `<div  style="justify-content: center;"><span class="material-symbols-outlined">speed</span><span>&nbsp;<b>Best-Ping</b></span></div>` 
+                        : config.address === 'WorkerLess'
+                            ? `<div  style="justify-content: center;"><span class="material-symbols-outlined">star</span><span>&nbsp;<b>WorkerLess</b></span></div>`
+                            : config.address
+                    }
+                </td>
+                <td>
+                    <button onclick="copyToClipboard('${encodeURIComponent(JSON.stringify(config.config, null, 4))}', true)">
+                        Copy Config 
+                        <span class="material-symbols-outlined">copy_all</span>
+                    </button>
+                </td>
+            </tr>`;
+        });
+
+        return tableBlock;
+    }
+
+    const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>WORLDWARS Panel ${panelVersion}</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+		<style>
+			body { font-family: system-ui; }
+            .material-symbols-outlined {
+                margin-left: 5px;
+                font-variation-settings:
+                'FILL' 0,
+                'wght' 400,
+                'GRAD' 0,
+                'opsz' 24
+            }
+            h1 { font-size: 2.5em; text-align: center; color: #09639f; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.25); }
+			h2 { margin: 30px 0; text-align: center; color: #3b3b3b; }
+			hr { border: 1px solid #ddd; margin: 20px 0; }
+            .footer {
+                display: flex;
+                font-weight: 600;
+                margin: 10px auto 0 auto;
+                justify-content: center;
+                align-items: center;
+            }
+            .footer button {margin: 0 20px; background: #212121; max-width: fit-content;}
+            .footer button:hover, .footer button:focus { background: #3b3b3b;}
+            .form-control a, a.link { text-decoration: none; }
+			.form-control {
+				margin-bottom: 15px;
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				align-items: baseline;
+				justify-content: flex-end;
+				font-family: Arial, sans-serif;
+			}
+            .form-control button {
+                background-color: white;
+                font-size: 1.1rem;
+                font-weight: 600;
+                color: #09639f;
+                border-color: #09639f;
+                border: 2px solid;
+            }
+            #apply {display: block; margin-top: 30px;}
+            input.button {font-weight: 600; padding: 15px 0; font-size: 1.1rem;}
+			label {
+				display: block;
+				margin-bottom: 5px;
+				font-size: 110%;
+				font-weight: 600;
+				color: #333;
+			}
+			input[type="text"],
+			input[type="number"],
+			input[type="url"],
+			textarea,
+			select {
+				width: 100%;
+				text-align: center;
+				padding: 10px;
+				border: 1px solid #ddd;
+				border-radius: 5px;
+				font-size: 16px;
+				color: #333;
+				background-color: #fff;
+				box-sizing: border-box;
+				margin-bottom: 15px;
+				transition: border-color 0.3s ease;
+			}	
+			input[type="text"]:focus,
+			input[type="number"]:focus,
+			input[type="url"]:focus,
+			textarea:focus,
+			select:focus { border-color: #3498db; outline: none; }
+			.button,
+			table button {
+				display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 100%;
+				white-space: nowrap;
+				padding: 10px 20px;
+				font-size: 16px;
+                font-weight: 600;
+				letter-spacing: 1px;
+				border: none;
+				border-radius: 5px;
+				color: #fff;
+				background-color: #09639f;
+				cursor: pointer;
+				outline: none;
+				box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+				transition: all 0.3s ease;
+			}
+            table button { margin: auto; width: auto; }
+            .button.disabled {
+                background-color: #ccc;
+                cursor: not-allowed;
+                box-shadow: none;
+                pointer-events: none;
+            }
+			.button:hover,
+			.button:focus,
+			table button:hover,
+			table button:focus {
+				background-color: #2980b9;
+				box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+				transform: translateY(-2px);
+			}
+            button.button:hover { color: white; }
+			.button:active,
+			table button:active { transform: translateY(1px); box-shadow: 0 3px 7px rgba(0, 0, 0, 0.3); }
+			.form-container {
+				max-width: 90%;
+				margin: 0 auto;
+				padding: 20px;
+				background: #f9f9f9;
+				border: 1px solid #eaeaea;
+				border-radius: 10px;
+				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			}
+			.table-container { margin-top: 20px; overflow-x: auto; }
+			table { 
+                width: 100%; 
+                border-collapse: collapse; 
+                margin-bottom: 20px;
+                border-radius: 7px;
+                overflow: hidden;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            }
+			th, td { padding: 8px 15px; border-bottom: 1px solid #ddd; }
+            td div { display: flex; align-items: center; }
+			th { background-color: #3498db; color: white; font-weight: bold; font-size: 1.1rem; width: 50%;}
+			tr:nth-child(odd) { background-color: #f2f2f2; }
+            #custom-configs-table td { text-align: center; }
+			tr:hover { background-color: #f1f1f1; }
+            .modal {
+                display: none;
+                position: fixed;
+                z-index: 1;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                overflow: auto;
+                background-color: rgba(0, 0, 0, 0.4);
+            }
+            .modal-content {
+                background-color: #f9f9f9;
+                margin: auto;
+                padding: 10px 20px 20px;
+                border: 1px solid #eaeaea;
+                border-radius: 10px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                width: 80%;
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+            }
+            .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
+            .close:hover,
+            .close:focus { color: black; text-decoration: none; cursor: pointer; }
+            .form-control label {
+                display: block;
+                margin-bottom: 5px;
+                font-size: 110%;
+                font-weight: 600;
+                color: #333;
+            }
+            .form-control input[type="password"] {
+                width: 100%;
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                font-size: 16px;
+                color: #333;
+                background-color: #fff;
+                box-sizing: border-box;
+                margin-bottom: 15px;
+                transition: border-color 0.3s ease;
+            }
+            .routing { display: flex; justify-content: center; align-items: center; margin-bottom: 15px; }
+            .routing label { margin: 0; font-weight: 400; font-size: 100%; }
+            .form-control input[type="password"]:focus { border-color: #3498db; outline: none; }
+            #passwordError { color: red; margin-bottom: 10px; }
+            .symbol { margin-right: 8px; }
+            .modalQR {
+                display: none;
+                position: fixed;
+                z-index: 1;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                overflow: auto;
+                background-color: rgba(0, 0, 0, 0.4);
+            }
+            @media only screen and (min-width: 768px) {
+                .form-container { max-width: 70%; }
+                #apply { display: block; margin: 30px auto 0 auto; max-width: 50%; }
+                .modal-content { width: 30% }
+            }
+		</style>
+	</head>
+	
+	<body>
+		<h1>WORLDWARS Panel <span style="font-size: smaller;">${panelVersion}</span> 🔥</h1>
+		<div class="form-container">
+            <h2>FRAGMENT SETTINGS ⚙️</h2>
+			<form id="configForm">
+				<div class="form-control">
+					<label for="remoteDNS">🌏 Remote DNS</label>
+					<input type="url" id="remoteDNS" name="remoteDNS" value="${remoteDNS}" required>
+				</div>
+				<div class="form-control">
+					<label for="localDNS">🏚️ Local DNS</label>
+					<input type="text" id="localDNS" name="localDNS" value="${localDNS}"
+						pattern="^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|localhost$"
+						title="Please enter a valid DNS IP Address or localhost!"  required>
+				</div>	
+				<div class="form-control">
+					<label for="fragmentLengthMin">📐 Length</label>
+					<div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;">
+						<input type="number" id="fragmentLengthMin" name="fragmentLengthMin" value="${lengthMin}" min="10" required>
+						<span style="text-align: center; white-space: pre;"> - </span>
+						<input type="number" id="fragmentLengthMax" name="fragmentLengthMax" value="${lengthMax}" max="500" required>
+					</div>
+				</div>
+				<div class="form-control">
+					<label for="fragmentIntervalMin">🕞 Interval</label>
+					<div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;">
+						<input type="number" id="fragmentIntervalMin" name="fragmentIntervalMin"
+    						value="${intervalMin}" max="30" required>
+						<span style="text-align: center; white-space: pre;"> - </span>
+						<input type="number" id="fragmentIntervalMax" name="fragmentIntervalMax"
+    						value="${intervalMax}" max="30" required>
+					</div>
+				</div>
+				<div class="form-control">
+					<label for="outProxy">✈️ Chain Proxy</label>
+					<input type="text" id="outProxy" name="outProxy" value="${outProxy}">
+				</div>
+                <h2>FRAGMENT ROUTING ⚙️</h2>
+				<div class="form-control" style="margin-bottom: 20px;">			
+                    <div class="routing">
+                        <input type="checkbox" id="block-ads" name="block-ads" style="margin: 0 10px 0 0;" value="true" ${blockAds ? 'checked' : ''}>
+                        <label for="block-ads">Block Ads.&nbsp</label>
+                    </div>
+                    <div class="routing">
+						<input type="checkbox" id="bypass-iran" name="bypass-iran" style="margin: 0 10px 0 0;;" value="true" ${bypassIran ? 'checked' : ''}>
+                        <label for="bypass-iran">Bypass Iran&nbsp</label>
+					</div>
+                    <div class="routing">
+						<input type="checkbox" id="block-porn" name="block-porn" style="margin: 0 10px 0 0;;" value="true" ${blockPorn ? 'checked' : ''}>
+                        <label for="block-porn">Block Porn</label>
+					</div>
+                    <div class="routing">
+						<input type="checkbox" id="bypass-lan" name="bypass-lan" style="margin: 0 10px 0 0;;" value="true" ${bypassLAN ? 'checked' : ''}>
+                        <label for="bypass-lan">Bypass LAN</label>
+					</div>
+				</div>
+                <h2>PROXY IP ⚙️</h2>
+				<div class="form-control">
+					<label for="proxyIP">📍 IP or Domain</label>
+					<input type="text" id="proxyIP" name="proxyIP" value="${proxyIP}">
+				</div>
+                <h2>CLEAN IP ⚙️</h2>
+				<div class="form-control">
+					<label for="cleanIPs">✨ Clean IPs</label>
+					<input type="text" id="cleanIPs" name="cleanIPs" value="${cleanIPs.replaceAll(",", " , ")}">
+				</div>
+                <div class="form-control">
+                    <label>🔎 Online Scanner</label>
+                    <a href="https://scanner.github1.cloud/" id="scanner" name="scanner" target="_blank">
+                        <button type="button" class="button">
+                            Scan now
+                            <span class="material-symbols-outlined" style="margin-left: 5px;">open_in_new</span>
+                        </button>
+                    </a>
+                </div>
+				<div id="apply" class="form-control">
+					<div style="grid-column: 2; width: 100%;">
+						<input type="submit" id="applyButton" class="button disabled" value="APPLY SETTINGS 💥" form="configForm">
+					</div>
+				</div>
+			</form>
+            <hr>            
+			<h2>NORMAL CONFIGS 🔗</h2>
+			<div class="table-container">
+				<table id="normal-configs-table">
+					<tr>
+						<th>Application</th>
+						<th>Subscription</th>
+					</tr>
+					<tr>
+                        <td>
+                            <div>
+                                <span class="material-symbols-outlined symbol">verified</span>
+                                <span>v2rayNG</span>
+                            </div>
+                            <div>
+                                <span class="material-symbols-outlined symbol">verified</span>
+                                <span>v2rayN</span>
+                            </div>
+                            <div>
+                                <span class="material-symbols-outlined symbol">verified</span>
+                                <span>Shadowrocket</span>
+                            </div>
+                            <div>
+                                <span class="material-symbols-outlined symbol">verified</span>
+                                <span>Streisand</span>
+                            </div>
+                            <div>
+                                <span class="material-symbols-outlined symbol">verified</span>
+                                <span>Hiddify</span>
+                            </div>
+                            <div>
+                                <span class="material-symbols-outlined symbol">verified</span>
+                                <span>Nekoray (Xray)</span>
+                            </div>
+                        </td>
+						<td>
+                            <button onclick="openQR('https://${hostName}/sub/${userID}#WORLDWARS-Normal', 'Normal Subscription')" style="margin-bottom: 8px;">
+                                QR Code&nbsp;<span class="material-symbols-outlined">qr_code</span>
+                            </button>
+                            <button onclick="copyToClipboard('https://${hostName}/sub/${userID}#WORLDWARS-Normal', false)">
+                                Copy Sub<span class="material-symbols-outlined">format_list_bulleted</span>
+                            </button>
+                        </td>
+					</tr>
+					<tr>
+                        <td>
+                            <div>
+                                <span class="material-symbols-outlined symbol">verified</span>
+                                <span>Nekobox</span>
+                            </div>
+                            <div>
+                                <span class="material-symbols-outlined symbol">verified</span>
+                                <span>Nekoray (Sing-Box)</span>
+                            </div>
+                        </td>
+						<td>
+                            <button onclick="copyToClipboard('https://${hostName}/sub/${userID}?app=singbox#WORLDWARS-Normal', false)">
+                                Copy Sub<span class="material-symbols-outlined">format_list_bulleted</span>
+                            </button>
+						</td>
+					</tr>
+                    <tr>
+                        <td>
+                            <div>
+                                <span class="material-symbols-outlined symbol">verified</span>
+                                <span>Sing-box - <b>Best Ping</b></span>
+                            </div>
+                        </td>
+                        <td>
+                            <button onclick="openQR('sing-box://import-remote-profile?url=https://${hostName}/sub/${userID}?app=sfa#WORLDWARS-Normal', 'Normal Subscription')" style="margin-bottom: 8px;">
+                                QR Code&nbsp;<span class="material-symbols-outlined">qr_code</span>
+                            </button>
+                            <button onclick="copyToClipboard('https://${hostName}/sub/${userID}?app=sfa#WORLDWARS-Normal', false)">
+                                Copy Sub<span class="material-symbols-outlined">format_list_bulleted</span>
+                            </button>
+                        </td>
+                    </tr>
+				</table>
+			</div>
+			<h2>FRAGMENT SUB ⛓️</h2>
+			<div class="table-container">
+                <table id="frag-sub-table">
+                    <tr>
+                        <th style="text-wrap: nowrap;">Application</th>
+                        <th style="text-wrap: nowrap;">Fragment Subscription</th>
+                    </tr>
+                    <tr>
+                        <td style="text-wrap: nowrap;">
+                            <div>
+                                <span class="material-symbols-outlined symbol">verified</span>
+                                <span>v2rayNG</span>
+                            </div>
+                            <div>
+                                <span class="material-symbols-outlined symbol">verified</span>
+                                <span>v2rayN</span>
+                            </div>
+                            <div>
+                                <span class="material-symbols-outlined symbol">verified</span>
+                                <span>Streisand</span>
+                            </div>
+                        </td>
+                        <td>
+                            <button onclick="openQR('https://${hostName}/fragsub/${userID}#WORLDWARS Fragment', 'Fragment Subscription')" style="margin-bottom: 8px;">
+                                QR Code&nbsp;<span class="material-symbols-outlined">qr_code</span>
+                            </button>
+                            <button onclick="copyToClipboard('https://${hostName}/fragsub/${userID}#WORLDWARS Fragment', true)">
+                                Copy Sub<span class="material-symbols-outlined">format_list_bulleted</span>
+                            </button>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <h2>FRAGMENT - NEKORAY ⛓️</h2>
+            <div class="table-container">
+				<table id="custom-configs-table">
+					<tr style="text-wrap: nowrap;">
+						<th>Config Address</th>
+						<th>Fragment Config</th>
+					</tr>					
+					${await genCustomConfRow(fragConfigs)}
+				</table>
+			</div>
+            <div id="myModal" class="modal">
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <form id="passwordChangeForm">
+                        <h2>Change Password</h2>
+                        <div class="form-control">
+                            <label for="newPassword">New Password</label>
+                            <input type="password" id="newPassword" name="newPassword" required>
+                            </div>
+                        <div class="form-control">
+                            <label for="confirmPassword">Confirm Password</label>
+                            <input type="password" id="confirmPassword" name="confirmPassword" required>
+                        </div>
+                        <div id="passwordError" style="color: red; margin-bottom: 10px;"></div>
+                        <button id="changePasswordBtn" type="submit" class="button">Change Password</button>
+                    </form>
+                </div>
+            </div>
+            <div id="myQRModal" class="modalQR">
+                <div class="modal-content" style="width: auto; text-align: center;">
+                    <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 10px;">
+                        <span id="closeQRModal" class="close" style="align-self: flex-end;">&times;</span>
+                        <span id="qrcodeTitle" style="align-self: center; font-weight: bold;"></span>
+                    </div>
+                    <div id="qrcode-container"></div>
+                </div>
+            </div>
+            <hr>
+            <div class="footer">
+                <i class="fa fa-github" style="font-size:36px; margin-right: 10px;"></i>
+                <a class="link" href="https://github.com/bia-pain-bache/BPB-Worker-Panel" target="_blank">Github</a>
+                <button id="openModalBtn" class="button">Change Password</button>
+                <button type="button" id="logout" style="background: none; margin: 0; border: none; cursor: pointer;">
+                    <i class="fa fa-power-off fa-2x" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+        
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+	<script>
+		document.addEventListener('DOMContentLoaded', () => {
+            let regionNames = new Intl.DisplayNames(['en'], {type: 'region'});
+            const configForm = document.getElementById('configForm');            
+            const modal = document.getElementById('myModal');
+            const changePass = document.getElementById("openModalBtn");
+            const closeBtn = document.querySelector(".close");
+            const passwordChangeForm = document.getElementById('passwordChangeForm');            
+            const applyBtn = document.getElementById('applyButton');         
+            const initialFormData = new FormData(configForm);
+            const closeQR = document.getElementById("closeQRModal");
+            let modalQR = document.getElementById("myQRModal");
+            let qrcodeContainer = document.getElementById("qrcode-container");
+          
+            const hasFormDataChanged = () => {
+                const currentFormData = new FormData(configForm);
+                const currentFormDataEntries = [...currentFormData.entries()];
+
+                const nonCheckboxFieldsChanged = currentFormDataEntries.some(
+                    ([key, value]) => !initialFormData.has(key) || initialFormData.get(key) !== value
+                );
+
+                const checkboxFieldsChanged = Array.from(configForm.elements)
+                    .filter((element) => element.type === 'checkbox')
+                    .some((checkbox) => {
+                    const initialValue = initialFormData.has(checkbox.name)
+                        ? initialFormData.get(checkbox.name)
+                        : false;
+                    const currentValue = currentFormDataEntries.find(([key]) => key === checkbox.name)?.[1] || false;
+                    return initialValue !== currentValue;
+                });
+
+                return nonCheckboxFieldsChanged || checkboxFieldsChanged;
+            };
+          
+            const enableApplyButton = () => {
+                const isChanged = hasFormDataChanged();
+                applyButton.disabled = !isChanged;
+                applyButton.classList.toggle('disabled', !isChanged);
+            };
+                      
+            passwordChangeForm.addEventListener('submit', event => resetPassword(event));
+            document.getElementById('logout').addEventListener('click', event => logout(event));
+			configForm.addEventListener('submit', (event) => applySettings(event, configForm));
+            configForm.addEventListener('input', enableApplyButton);
+            configForm.addEventListener('change', enableApplyButton);
+            changePass.addEventListener('click', () => {
+                modal.style.display = "block";
+                document.body.style.overflow = "hidden";
+            });        
+            closeBtn.addEventListener('click', () => {
+                modal.style.display = "none";
+                document.body.style.overflow = "";
+            });
+            closeQR.addEventListener('click', () => {
+                modalQR.style.display = "none";
+                qrcodeContainer.lastElementChild.remove();
+            });
+            window.onclick = (event) => {
+                if (event.target == modalQR) {
+                    modalQR.style.display = "none";
+                    qrcodeContainer.lastElementChild.remove();
+                }
+            }
+		});
+
+        const openQR = (url, title) => {
+            let qrcodeContainer = document.getElementById("qrcode-container");
+            let qrcodeTitle = document.getElementById("qrcodeTitle");
+            const modalQR = document.getElementById("myQRModal");
+            qrcodeTitle.textContent = title;
+            modalQR.style.display = "block";
+            let qrcodeDiv = document.createElement("div");
+            qrcodeDiv.className = "qrcode";
+            new QRCode(qrcodeDiv, {
+                text: url,
+                width: 256,
+                height: 256,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+            qrcodeContainer.appendChild(qrcodeDiv);
         }
-		img {
-			max-width: 100%;
-			height: auto;
+
+		const copyToClipboard = (text, decode) => {
+            const textarea = document.createElement('textarea');
+            const value = decode ? decodeURIComponent(text) : text;
+			textarea.value = value;
+			document.body.appendChild(textarea);
+			textarea.select();
+			document.execCommand('copy');
+			document.body.removeChild(textarea);
+			alert('📋 Copied to clipboard:\\n\\n' +  value);
 		}
-		
-        pre {
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            background-color: #fff;
+
+        const applySettings = async (event, configForm) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const applyButton = document.getElementById('applyButton');
+            const getValue = (id) => parseInt(document.getElementById(id).value, 10);              
+            const lengthMin = getValue('fragmentLengthMin');
+            const lengthMax = getValue('fragmentLengthMax');
+            const intervalMin = getValue('fragmentIntervalMin');
+            const intervalMax = getValue('fragmentIntervalMax');
+            const proxyIP = document.getElementById('proxyIP').value?.trim();
+            const cleanIP = document.getElementById('cleanIPs');
+            const cleanIPs = cleanIP.value?.split(',');
+            const chainProxy = document.getElementById('outProxy').value?.trim();                    
+            const formData = new FormData(configForm);
+            const isVless = /vless:\\/\\/[^\s@]+@[^\\s:]+:[^\\s]+/.test(chainProxy);
+            const hasSecurity = /security=/.test(chainProxy);
+            const validSecurityType = /security=(tls|none|reality)/.test(chainProxy);
+            const validTransmission = /type=(tcp|grpc|ws)/.test(chainProxy);
+            const validIPDomain = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}|(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+
+            const invalidIPs = [...cleanIPs, proxyIP]?.filter(value => {
+                if (value !== "") {
+                    const trimmedValue = value.trim();
+                    return !validIPDomain.test(trimmedValue);
+                }
+            });
+    
+            if (invalidIPs.length) {
+                alert('⛔ Invalid IPs or Domains 🫤\\n\\n' + invalidIPs.map(ip => '⚠️ ' + ip).join('\\n'));
+                return false;
+            }
+
+            if (lengthMin >= lengthMax || intervalMin > intervalMax) {
+                alert('⛔ Minimum should be smaller or equal to Maximum! 🫤');               
+                return false;
+            }
+
+            if (!(isVless && (hasSecurity && validSecurityType || !hasSecurity) && validTransmission) && chainProxy) {
+                alert('⛔ Invalid Config! 🫤 \\n - The chain proxy should be VLESS!\\n - Transmission should be GRPC,WS or TCP\\n - Security should be TLS,Reality or None');               
+                return false;
+            }
+
+            try {
+                document.body.style.cursor = 'wait';
+                const applyButtonVal = applyButton.value;
+                applyButton.value = '⌛ Loading...';
+
+                const response = await fetch('/panel', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'include'
+                });
+
+                document.body.style.cursor = 'default';
+                applyButton.value = applyButtonVal;
+
+                if (response.ok) {
+                    alert('Parameters applied successfully 😎');
+                    window.location.reload(true);
+                } else {
+                    const errorMessage = await response.text();
+                    console.error(errorMessage, response.status);
+                    alert('⚠️ Session expired! Please login again.');
+                    window.location.href = '/login';
+                }           
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        const logout = async (event) => {
+            event.preventDefault();
+
+            try {
+                const response = await fetch('/logout', {
+                    method: 'GET',
+                    credentials: 'same-origin'
+                });
+            
+                if (response.ok) {
+                    window.location.href = '/login';
+                } else {
+                    console.error('Failed to log out:', response.status);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        const resetPassword = async (event) => {
+            event.preventDefault();
+            const modal = document.getElementById('myModal');
+            const newPasswordInput = document.getElementById('newPassword');
+            const confirmPasswordInput = document.getElementById('confirmPassword');
+            const passwordError = document.getElementById('passwordError');             
+            const newPassword = newPasswordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+    
+            if (newPassword !== confirmPassword) {
+                passwordError.textContent = "Passwords do not match";
+                return false;
+            }
+
+            const hasCapitalLetter = /[A-Z]/.test(newPassword);
+            const hasNumber = /[0-9]/.test(newPassword);
+            const isLongEnough = newPassword.length >= 8;
+
+            if (!(hasCapitalLetter && hasNumber && isLongEnough)) {
+                passwordError.textContent = '⚠️ Password must contain at least one capital letter, one number, and be at least 8 characters long.';
+                return false;
+            }
+                    
+            try {
+                const response = await fetch('/panel/password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'text/plain'
+                    },
+                    body: newPassword,
+                    credentials: 'same-origin'
+                });
+            
+                if (response.ok) {
+                    modal.style.display = "none";
+                    document.body.style.overflow = "";
+                    alert("Password changed successfully! 👍");
+                    window.location.href = '/login';
+                } else if (response.status === 401) {
+                    const errorMessage = await response.text();
+                    passwordError.textContent = '⚠️ ' + errorMessage;
+                    console.error(errorMessage, response.status);
+                    alert('⚠️ Session expired! Please login again.');
+                    window.location.href = '/login';
+                } else {
+                    const errorMessage = await response.text();
+                    passwordError.textContent = '⚠️ ' + errorMessage;
+                    console.error(errorMessage, response.status);
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+	</script>
+	</body>	
+	</html>`;
+
+    return html;
+}
+
+const renderLoginPage = async () => {
+    const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Login</title>
+    <style>
+
+        html, body { height: 100%; margin: 0; }
+        body {
+            font-family: system-ui;
+            background-color: #f9f9f9;
+            position: relative;
+            overflow: hidden;
+        }
+        .container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+        }
+        h1 { font-size: 2.5rem; text-align: center; color: #09639f; margin: 0 auto 30px; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.25); }        
+        h2 {text-align: center;}
+        .form-container {
+            background: #f9f9f9;
+            border: 1px solid #eaeaea;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        .form-control { margin-bottom: 15px; display: flex; align-items: center; }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            padding-right: 20px;
+            font-size: 110%;
+            font-weight: 600;
+            color: #333;
+        }
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 10px;
             border: 1px solid #ddd;
-            padding: 15px;
-            margin: 10px 0;
+            border-radius: 5px;
+            color: #333;
         }
-		/* Dark mode */
-        @media (prefers-color-scheme: dark) {
-            body {
-                background-color: #333;
-                color: #f0f0f0;
-            }
-
-            a {
-                color: #9db4ff;
-            }
-
-            pre {
-                background-color: #282a36;
-                border-color: #6272a4;
-            }
+        button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 5px;
+            color: #fff;
+            background-color: #09639f;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
         }
+        button:hover {background-color: #2980b9;}
+        @media only screen and (min-width: 768px) {
+            .container { width: 30%; }
+        }
+    </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>WORLDWARS Panel <span style="font-size: smaller;">${panelVersion}</span> 🔥</h1>
+            <div class="form-container">
+                <h2>User Login</h2>
+                <form id="loginForm">
+                    <div class="form-control">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <div id="passwordError" style="color: red; margin-bottom: 10px;"></div>
+                    <button type="submit" class="button">Login</button>
+                </form>
+            </div>
+        </div>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'text/plain'
+                    },
+                    body: password
+                });
+            
+                if (response.ok) {
+                    window.location.href = '/panel';
+                } else {
+                    passwordError.textContent = '⚠️ Wrong Password!';
+                    const errorMessage = await response.text();
+                    console.error('Login failed:', errorMessage);
+                }
+            } catch (error) {
+                console.error('Error during login:', error);
+            }
+        });
+    </script>
+    </body>
+    </html>`;
+
+    return html;
+}
+
+const renderErrorPage = (message, error, refer) => {
+    return `
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Error Page</title>
+        <style>
+            body,
+            html {
+                height: 100%;
+                margin: 0;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                font-family: system-ui;
+            }
+            h1 { font-size: 2.5rem; text-align: center; color: #09639f; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.25); }
+            #error-container { text-align: center; }
         </style>
     </head>
-    `;
 
-	// Join output with newlines, wrap inside <html> and <body>
-	return `
-    <html>
-    ${htmlHead}
     <body>
-    <pre style="
-    background-color: transparent;
-    border: none;
-">${header.join('')}</pre><pre>${output.join('\n')}</pre>
+        <div id="error-container">
+            <h1>WORLDWARS Panel <span style="font-size: smaller;">${panelVersion}</span> 🔥</h1>
+            <div id="error-message">
+                <h2>${message} ${refer 
+                    ? 'Please try again or refer to <a href="https://github.com/bia-pain-bache/BPB-Worker-Panel/blob/main/README.md">documents</a>' 
+                    : ''}
+                </h2>
+                <p><b>${error ? `⚠️ ${error}` : ''}</b></p>
+            </div>
+        </div>
     </body>
-</html>`;
+
+    </html>`;
 }
 
+const xrayConfigTemp = {
+    remarks: "",
+    log: {
+        loglevel: "warning",
+    },
+    dns: {},
+    inbounds: [
+        {
+            port: 10808,
+            protocol: "socks",
+            settings: {
+                auth: "noauth",
+                udp: true,
+                userLevel: 8,
+            },
+            sniffing: {
+                destOverride: ["http", "tls"],
+                enabled: true,
+            },
+            tag: "socks-in",
+        },
+        {
+            port: 10809,
+            protocol: "http",
+            settings: {
+                auth: "noauth",
+                udp: true,
+                userLevel: 8,
+            },
+            sniffing: {
+                destOverride: ["http", "tls"],
+                enabled: true,
+            },
+            tag: "http-in",
+        },
+    ],
+    outbounds: [
+        {
+            tag: "fragment",
+            protocol: "freedom",
+            settings: {
+                fragment: {
+                    packets: "tlshello",
+                    length: "",
+                    interval: "",
+                },
+            },
+            streamSettings: {
+                sockopt: {
+                    tcpKeepAliveIdle: 100,
+                    tcpNoDelay: true,
+                },
+            },
+        },
+        {
+            protocol: "dns",
+            tag: "dns-out"
+        },
+        {
+            protocol: "freedom",
+            settings: {},
+            tag: "direct",
+        },
+        {
+            protocol: "blackhole",
+            settings: {
+                response: {
+                    type: "http",
+                },
+            },
+            tag: "block",
+        },
+    ],
+    policy: {
+        levels: {
+            8: {
+                connIdle: 300,
+                downlinkOnly: 1,
+                handshake: 4,
+                uplinkOnly: 1,
+            }
+        },
+        system: {
+            statsOutboundUplink: true,
+            statsOutboundDownlink: true,
+        }
+    },
+    routing: {
+        domainStrategy: "IPIfNonMatch",
+        rules: [],
+        balancers: [
+            {
+                tag: "all",
+                selector: ["prox"],
+                strategy: {
+                    type: "leastPing",
+                },
+            }
+        ]
+    },
+    observatory: {
+        probeInterval: "3m",
+        probeURL: "https://api.github.com/_private/browser/stats",
+        subjectSelector: ["prox"],
+        EnableConcurrency: true,
+    },
+    stats: {},
+};
+  
+const xrayOutboundTemp = 
+{
+    mux: {
+        concurrency: 8,
+        enabled: true,
+        xudpConcurrency: 8,
+        xudpProxyUDP443: "reject"
+    },
+    protocol: "vless",
+    settings: {
+        vnext: [
+            {
+                address: "",
+                port: 443,
+                users: [
+                    {
+                        encryption: "none",
+                        flow: "",
+                        id: "",
+                        level: 8,
+                        security: "auto"
+                    }
+                ]
+            }
+        ]
+    },
+    streamSettings: {
+        network: "ws",
+        security: "tls",
+        sockopt: {
+            dialerProxy: "fragment",
+            tcpKeepAliveIdle: 100,
+            tcpNoDelay: true
+        },
+        tlsSettings: {
+            allowInsecure: false,
+            fingerprint: "chrome",
+            alpn: ["h2", "http/1.1"],
+            serverName: ""
+        },
+        wsSettings: {
+            headers: {Host: ""},
+            path: ""
+        },
+        grpcSettings: {
+            authority: "",
+            multiMode: false,
+            serviceName: ""
+        },
+        realitySettings: {
+            fingerprint: "",
+            publicKey: "",
+            serverName: "",
+            shortId: "",
+            spiderX: ""
+        },
+        tcpSettings: {
+            header: {
+                request: {
+                    headers: {
+                        Host: []
+                    },
+                    method: "GET",
+                    path: [],
+                    version: "1.1"
+                },
+                response: {
+                    headers: {
+                        "Content-Type": ["application/octet-stream"]
+                    },
+                    reason: "OK",
+                    status: "200",
+                    version: "1.1"
+                },
+                type: "http"
+            }
+        }
+    },
+    tag: "proxy"
+};
 
-function createVLESSSub(userID_Path, hostName) {
-	let portArray_http = [80, 8080, 8880, 2052, 2086, 2095, 2082];
-	let portArray_https = [443, 8443, 2053, 2096, 2087, 2083];
+const singboxConfigTemp = {
+    log: {
+        level: "warn",
+        timestamp: true
+    },
+    dns: {
+        servers: [
+            {
+                tag: "dns-remote",
+                address: "https://8.8.8.8/dns-query",
+                address_resolver: "dns-direct"
+            },
+            {
+                tag: "dns-direct",
+                address: "8.8.8.8",
+                address_resolver: "dns-local",
+                detour: "direct"
+            },
+            {
+                tag: "dns-local",
+                address: "local",
+                detour: "direct"
+            },
+            {
+                tag: "dns-block",
+                address: "rcode://success"
+            }
+        ],
+        rules: [
+            {
+                domain_suffix: [".ir"],
+                server: "dns-direct"
+            },
+            {
+                outbound: "direct",
+                server: "dns-direct"
+            }
+        ],
+        independent_cache: true
+    },
+    inbounds: [
+        {
+            type: "direct",
+            tag: "dns-in",
+            listen: "127.0.0.1",
+            listen_port: 6450,
+            override_address: "8.8.8.8",
+            override_port: 53
+        },
+        {
+            type: "tun",
+            tag: "tun-in",
+            mtu: 9000,
+            inet4_address: "172.19.0.1/28",
+            auto_route: true,
+            strict_route: true,
+            endpoint_independent_nat: true,
+            stack: "mixed",
+            sniff: true,
+            sniff_override_destination: true
+        },
+        {
+            type: "mixed",
+            tag: "mixed-in",
+            listen: "127.0.0.1",
+            listen_port: 2080,
+            sniff: true,
+            sniff_override_destination: true
+        }
+    ],
+    outbounds: [
+        {
+            type: "selector",
+            tag: "proxy",
+            outbounds: ["Best-Ping"]
+        },
+        {
+            type: "urltest",
+            tag: "Best-Ping",
+            outbounds: [],
+            url: "https://www.gstatic.com/generate_204",
+            interval: "3m",
+            tolerance: 50
+        },
+        {
+            type: "direct",
+            tag: "direct"
+        },
+        {
+            type: "block",
+            tag: "block"
+        },
+        {
+            type: "dns",
+            tag: "dns-out"
+        }
+    ],
+    route: {
+        rules: [
+            {
+                port: 53,
+                outbound: "dns-out"
+            },
+            {
+                inbound: "dns-in",
+                outbound: "dns-out"
+            },
+            {
+                network: "udp",
+                port: 443,
+                port_range: [],
+                outbound: "block"
+            },
+            {
+                ip_is_private: true,
+                outbound: "direct"
+            },
+            {
+                rule_set: [
+                    "geosite-category-ads-all",
+                    "geosite-malware",
+                    "geosite-phishing",
+                    "geosite-cryptominers",
+                    "geoip-malware",
+                    "geoip-phishing"
+                ],
+                outbound: "block"
+            },
+            {
+                rule_set: ["geosite-ir", "geoip-ir"],
+                outbound: "direct"
+            },
+            {
+                ip_cidr: ["224.0.0.0/3", "ff00::/8"],
+                source_ip_cidr: ["224.0.0.0/3", "ff00::/8"],
+                outbound: "block"
+            }
+        ],
+        rule_set: [
+            {
+                type: "remote",
+                tag: "geosite-ir",
+                format: "binary",
+                url: "https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-ir.srs",
+                download_detour: "direct"
+            },
+            {
+                type: "remote",
+                tag: "geosite-category-ads-all",
+                format: "binary",
+                url: "https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-category-ads-all.srs",
+                download_detour: "direct"
+            },
+            {
+                type: "remote",
+                tag: "geosite-malware",
+                format: "binary",
+                url: "https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-malware.srs",
+                download_detour: "direct"
+            },
+            {
+                type: "remote",
+                tag: "geosite-phishing",
+                format: "binary",
+                url: "https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-phishing.srs",
+                download_detour: "direct"
+            },
+            {
+                type: "remote",
+                tag: "geosite-cryptominers",
+                format: "binary",
+                url: "https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-cryptominers.srs",
+                download_detour: "direct"
+            },
+            {
+                type: "remote",
+                tag: "geoip-ir",
+                format: "binary",
+                url: "https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geoip-ir.srs",
+                download_detour: "direct"
+            },
+            {
+                type: "remote",
+                tag: "geoip-malware",
+                format: "binary",
+                url: "https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geoip-malware.srs",
+                download_detour: "direct"
+            },
+            {
+                type: "remote",
+                tag: "geoip-phishing",
+                format: "binary",
+                url: "https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geoip-phishing.srs",
+                download_detour: "direct"
+            }
+        ],
+        auto_detect_interface: true,
+        override_android_vpn: true,
+        final: "proxy"
+    },
+    experimental: {
+        clash_api: {
+            external_controller: "0.0.0.0:9090",
+            external_ui: "yacd",
+            external_ui_download_url: "https://github.com/MetaCubeX/Yacd-meta/archive/gh-pages.zip",
+            external_ui_download_detour: "direct",
+            secret: "",
+            default_mode: "rule"
+        }
+    }
+};
 
-	// Split the userIDs into an array
-	let userIDArray = userID_Path.includes(',') ? userID_Path.split(',') : [userID_Path];
+const singboxOutboundTemp = {
+    type: "vless",
+    server: "",
+    server_port: 443,
+    uuid: "",
+    domain_strategy: "prefer_ipv6",
+    packet_encoding: "",
+    tls: {
+        alpn: [
+            "http/1.1"
+        ],
+        enabled: true,
+        insecure: false,
+        server_name: "",
+        utls: {
+            enabled: true,
+            fingerprint: "randomized"
+        }
+    },
+    transport: {
+        early_data_header_name: "Sec-WebSocket-Protocol",
+        headers: {
+            Host: ""
+        },
+        max_early_data: 2048,
+        path: "/",
+        type: "ws"
+    },
+    tag: ""
+};
 
-	// Prepare output array
-	let output = [];
+const buildDNSObject = async (remoteDNS, localDNS, blockAds, bypassIran, blockPorn, isWorkerLess) => {
+    let dnsObject = {
+        hosts: {},
+        servers: [
+          isWorkerLess ? "https://cloudflare-dns.com/dns-query" : remoteDNS,
+          {
+            address: localDNS,
+            domains: ["geosite:category-ir", "domain:.ir"],
+            expectIPs: ["geoip:ir"],
+            port: 53,
+          },
+        ],
+        tag: "dns",
+    };
 
-	// Generate output string for each userID
-	userIDArray.forEach((userID) => {
-		// Check if the hostName is a Cloudflare Pages domain, if not, generate HTTP configurations
-		// reasons: pages.dev not support http only https
-		if (!hostName.includes('pages.dev')) {
-			// Iterate over all ports for http
-			portArray_http.forEach((port) => {
-				const commonUrlPart_http = `:${port}?encryption=none&security=none&fp=random&type=ws&host=${hostName}&path=%2F%3Fed%3D2048#${hostName}-HTTP-${port}`;
-				const vlessMainHttp = `vless://${userID}@${hostName}${commonUrlPart_http}`;
+    if (isWorkerLess) {
+        const resolvedDOH = await resolveDNS('cloudflare-dns.com');
+        const resolvedCloudflare = await resolveDNS('cloudflare.com');
+        const resolvedCLDomain = await resolveDNS('www.speedtest.net.cdn.cloudflare.net');
+        const resolvedCFNS_1 = await resolveDNS('ben.ns.cloudflare.com');
+        const resolvedCFNS_2 = await resolveDNS('lara.ns.cloudflare.com');
+        dnsObject.hosts['cloudflare-dns.com'] = [
+            ...resolvedDOH.ipv4, 
+            ...resolvedCloudflare.ipv4, 
+            ...resolvedCLDomain.ipv4,
+            ...resolvedCFNS_1.ipv4,
+            ...resolvedCFNS_2.ipv4
+        ];
+    }
 
-				// For each proxy IP, generate a VLESS configuration and add to output
-				proxyIPs.forEach((proxyIP) => {
-					const vlessSecHttp = `vless://${userID}@${proxyIP}${commonUrlPart_http}-${proxyIP}-EDtunnel`;
-					output.push(`${vlessMainHttp}`);
-					output.push(`${vlessSecHttp}`);
-				});
-			});
-		}
-		// Iterate over all ports for https
-		portArray_https.forEach((port) => {
-			const commonUrlPart_https = `:${port}?encryption=none&security=tls&sni=${hostName}&fp=random&type=ws&host=${hostName}&path=%2F%3Fed%3D2048#${hostName}-HTTPS-${port}`;
-			const vlessMainHttps = `vless://${userID}@${hostName}${commonUrlPart_https}`;
+    if (blockAds) {
+        dnsObject.hosts["geosite:category-ads-all"] = "127.0.0.1";
+        dnsObject.hosts["geosite:category-ads-ir"] = "127.0.0.1";
+    }
 
-			// For each proxy IP, generate a VLESS configuration and add to output
-			proxyIPs.forEach((proxyIP) => {
-				const vlessSecHttps = `vless://${userID}@${proxyIP}${commonUrlPart_https}-${proxyIP}-EDtunnel`;
-				output.push(`${vlessMainHttps}`);
-				output.push(`${vlessSecHttps}`);
-			});
-		});
-	});
+    if (blockPorn) {
+        dnsObject.hosts["geosite:category-porn"] = "127.0.0.1";
+    }
 
-	// Join output with newlines
-	return output.join('\n');
+    if (!bypassIran || localDNS === 'localhost' || isWorkerLess) {
+        dnsObject.servers.pop();
+    }
+
+    return dnsObject;
 }
 
+const buildRoutingRules = (localDNS, blockAds, bypassIran, blockPorn, bypassLAN, isChain, isBalancer, isWorkerLess) => {
+    let rules = [
+        {
+          ip: [localDNS],
+          outboundTag: "direct",
+          port: "53",
+          type: "field",
+        },
+        {
+          inboundTag: ["socks-in", "http-in"],
+          type: "field",
+          port: "53",
+          outboundTag: "dns-out",
+          enabled: true,
+        }
+    ];
+
+    if (localDNS === 'localhost' || isWorkerLess) {
+        rules.splice(0,1);
+    }
+
+    if (bypassIran || bypassLAN) {
+        let rule = {
+            ip: [],
+            outboundTag: "direct",
+            type: "field",
+        };
+        
+        if (bypassIran && !isWorkerLess) {
+            rules.push({
+                domain: ["geosite:category-ir", "domain:.ir"],
+                outboundTag: "direct",
+                type: "field",
+            });
+            rule.ip.push("geoip:ir");
+        }
+
+        bypassLAN && rule.ip.push("geoip:private");
+        rules.push(rule);
+    }
+
+    if (blockAds || blockPorn) {
+        let rule = {
+            domain: [],
+            outboundTag: "block",
+            type: "field",
+        };
+
+        blockAds && rule.domain.push("geosite:category-ads-all", "geosite:category-ads-ir");
+        blockPorn && rule.domain.push("geosite:category-porn");
+        rules.push(rule);
+    }
+   
+    if (isBalancer) {
+        rules.push({
+            balancerTag: "all",
+            type: "field",
+            network: "tcp,udp",
+        });
+    } else  {
+        rules.push({
+            outboundTag: isChain ? "out" : isWorkerLess ? "fragment" : "proxy",
+            type: "field",
+            network: "tcp,udp"
+        });
+    }
+
+    return rules;
+}
